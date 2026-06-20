@@ -294,8 +294,9 @@ const updateColony = (colony: Colony, deltaMs: number, weatherEffect: ReturnType
     const hungerDecay = HUNGER_DECAY_RATE * colonyHungerMod * 0.8 * (deltaMs / 1000)
     bird.hunger = clamp(bird.hunger - hungerDecay, ATTR_MIN, ATTR_MAX)
 
+    const healthPenaltyMod = 1 / colonyHealthMod
     if (bird.hunger < 30) {
-      bird.health = clamp(bird.health - 0.3 * colonyHealthMod * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
+      bird.health = clamp(bird.health - 0.3 * healthPenaltyMod * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
     } else if (bird.hunger > 70) {
       bird.health = clamp(bird.health + HEALTH_RECOVERY_RATE * colonyHealthMod * 0.8 * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
     }
