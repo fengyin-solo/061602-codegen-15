@@ -11,9 +11,10 @@ import { WEATHER_COLORS } from '@/utils/constants'
 
 const router = useRouter()
 const {
-  state, allAdults, aliveCount,
+  state, allAdults, aliveCount, adultCount, canCreateColony,
   collectBerry, feedBird, calmBird, buryBird,
   releaseBirds, keepAndBreed, returnToStart, tryLoadGame,
+  openColonyModal, closeColonyModal, toggleColonyBirdSelection, createColony,
 } = useGameState()
 
 onMounted(() => {
@@ -69,6 +70,7 @@ const handleCollect = (id: string) => {
               :bird="bird"
               :selected="state.selectedBirdId === bird.id"
               :food-stock="state.foodStock"
+              :colonies="state.colonies"
               @select="handleSelectBird(bird.id)"
               @feed="((amt: number) => feedBird(bird.id, amt))"
               @calm="calmBird(bird.id)"
@@ -96,25 +98,33 @@ const handleCollect = (id: string) => {
           <EventModal
             :state="state"
             :all-adults="allAdults"
+            :can-create-colony="canCreateColony"
+            :adult-count="adultCount"
             @release="releaseBirds"
             @breed="keepAndBreed"
+            @open-colony="openColonyModal"
+            @close-colony="closeColonyModal"
+            @toggle-bird-selection="toggleColonyBirdSelection"
+            @create-colony="(food: number) => createColony(food)"
           />
         </div>
       </div>
 
-      <div class="flex justify-center gap-3">
+      <div class="flex justify-center gap-3 flex-wrap">
         <button
           class="px-4 py-2 glass rounded-xl text-white/80 text-sm hover:bg-white/20 transition-all flex items-center gap-1.5"
           @click="returnToStart(); router.push('/')"
         >
           <span>🏠</span> 返回主页
         </button>
-        <div class="glass rounded-xl px-4 py-2 text-white/80 text-sm flex items-center gap-2">
+        <div class="glass rounded-xl px-4 py-2 text-white/80 text-sm flex items-center gap-2 flex-wrap">
           <span>💚</span> 存活 {{ aliveCount }} 只
           <span class="mx-1 text-white/30">|</span>
           孵化 {{ state.totalHatched }}
           <span class="mx-1 text-white/30">|</span>
           离世 {{ state.totalDied }}
+          <span v-if="state.colonies.length > 0" class="mx-1 text-white/30">|</span>
+          <span v-if="state.colonies.length > 0">🏡 分巢 {{ state.colonies.length }} 个</span>
         </div>
       </div>
     </div>

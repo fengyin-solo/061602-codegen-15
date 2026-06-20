@@ -16,8 +16,25 @@ const emit = defineEmits<{
   (e: 'collectBerry', id: string): void
 }>()
 
+const mainNestBirds = computed(() =>
+  props.birds.filter(b => !b.colonyId)
+)
+
+const colonyGroups = computed(() => {
+  const groups: Record<string, typeof props.birds> = {}
+  props.birds.forEach(bird => {
+    if (bird.colonyId) {
+      if (!groups[bird.colonyId]) {
+        groups[bird.colonyId] = []
+      }
+      groups[bird.colonyId].push(bird)
+    }
+  })
+  return groups
+})
+
 const displayBirds = computed(() => {
-  return props.birds.map((bird, idx, arr) => {
+  return mainNestBirds.value.map((bird, idx, arr) => {
     const total = arr.length
     const angle = (idx / Math.max(total, 1)) * Math.PI * 0.6 - Math.PI * 0.3
     const radius = total > 3 ? 70 : total > 2 ? 55 : 40
@@ -26,6 +43,21 @@ const displayBirds = computed(() => {
     return { bird, x, y, idx }
   })
 })
+
+const getColonyDisplayBirds = (colonyId: string, colonyIndex: number) => {
+  const birds = colonyGroups.value[colonyId] || []
+  const colonyX = 15 + colonyIndex * 35
+  return birds.map((bird, idx, arr) => {
+    const total = arr.length
+    const offsetX = (idx - (total - 1) / 2) * 12
+    return {
+      bird,
+      x: colonyX + offsetX,
+      y: 25 + (bird.stage === 'adult' ? 0 : 3),
+      idx,
+    }
+  })
+}
 </script>
 
 <template>
@@ -71,6 +103,57 @@ const displayBirds = computed(() => {
     </div>
 
     <div class="relative w-[85%] max-w-lg aspect-[4/3] z-10">
+      <div
+        v-for="(colonyBirds, colonyId, index) in colonyGroups"
+        :key="colonyId"
+        class="absolute"
+        :style="{
+          left: `${15 + index * 35}%`,
+          top: '8%',
+          transform: 'translateX(-50%)'
+        }"
+      >
+        <div class="relative">
+          <svg viewBox="0 0 80 50" class="w-24 h-16">
+            <ellipse cx="40" cy="35" rx="35" ry="12" fill="#A0522D" opacity="0.8" />
+            <ellipse cx="40" cy="33" rx="30" ry="10" fill="#6B4423" opacity="0.8" />
+            <path d="M 10 35 Q 20 15 40 20 Q 60 15 70 35" stroke="#5D3A1A" stroke-width="2" fill="none" opacity="0.5" />
+          </svg>
+          <div class="absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-emerald-300 font-medium whitespace-nowrap">
+            🏡 分巢
+          </div>
+        </div>
+        <div
+          v-for="{ bird, x, y, idx } in getColonyDisplayBirds(colonyId, index)"
+          :key="bird.id"
+          class="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-110"
+          :class="[
+            selectedBirdId === bird.id && !bird.isDead ? 'scale-110 z-20' : 'z-10',
+            bird.justMoved ? 'animate-bounce-slow' : ''
+          ]"
+          :style="{ left: `${x}%`, top: `${y}%` }"
+          @click="emit('selectBird', bird.id)"
+        >
+          <BirdSprite
+            :stage="bird.stage"
+            :is-dead="bird.isDead"
+            :is-away="bird.isAway"
+            :is-sick="bird.isSick"
+            :just-hatched="bird.justHatched"
+            :just-grew="bird.justGrew"
+            :just-fed="bird.justFed"
+            :personality="bird.personality"
+          />
+          <div
+            v-if="selectedBirdId === bird.id && !bird.isDead"
+            class="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap
+                   px-2 py-0.5 bg-emerald-400/90 text-emerald-900 text-[10px] font-bold rounded-full"
+          >
+            {{ bird.name }} · 分巢
+          </div>
+        </div>
+      </div>
+
       <div class="absolute inset-0 flex items-end justify-center">
         <svg viewBox="0 0 300 180" class="w-full h-full nest-shadow">
           <defs>
@@ -96,6 +179,9 @@ const displayBirds = computed(() => {
           <path d="M 100 85 L 105 70 L 115 82" stroke="#6B4423" stroke-width="2" fill="none" />
           <path d="M 185 82 L 195 70 L 200 85" stroke="#6B4423" stroke-width="2" fill="none" />
         </svg>
+        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-amber-300 font-medium">
+          🏠 主巢
+        </div>
       </div>
 
       <div class="absolute inset-0">

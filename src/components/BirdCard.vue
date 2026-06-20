@@ -9,6 +9,7 @@ const props = defineProps<{
   bird: Bird
   selected?: boolean
   foodStock: number
+  colonies?: any[]
 }>()
 
 const emit = defineEmits<{
@@ -19,7 +20,14 @@ const emit = defineEmits<{
 }>()
 
 const canInteract = computed(() => {
-  return !props.bird.isDead && !props.bird.isAway && props.bird.stage !== 'egg'
+  return !props.bird.isDead && !props.bird.isAway && props.bird.stage !== 'egg' && !props.bird.colonyId
+})
+
+const colonyName = computed(() => {
+  if (!props.bird.colonyId) return ''
+  const colonies = (props as any).colonies || []
+  const colony = colonies.find((c: any) => c.id === props.bird.colonyId)
+  return colony?.name || '分巢'
 })
 
 const feedAmounts = [5, 10, 20]
@@ -40,24 +48,36 @@ const hatchProgress = computed(() => {
         ? 'glass ring-2 ring-yellow-400/80 scale-[1.02] card-shadow'
         : 'bg-white/8 hover:bg-white/15 border border-white/10',
       bird.isDead ? 'opacity-70 bg-red-900/20' : '',
+      bird.colonyId ? 'border-emerald-400/30 bg-emerald-500/5' : '',
     ]"
     @click="emit('select')"
   >
     <div class="flex items-start gap-4">
       <div class="flex flex-col items-center gap-2 shrink-0">
-        <BirdSprite
-          :stage="bird.stage"
-          :is-dead="bird.isDead"
-          :is-away="bird.isAway"
-          :is-sick="bird.isSick"
-          :just-hatched="bird.justHatched"
-          :just-grew="bird.justGrew"
-          :just-fed="bird.justFed"
-          :personality="bird.personality"
-        />
+        <div class="relative">
+          <BirdSprite
+            :stage="bird.stage"
+            :is-dead="bird.isDead"
+            :is-away="bird.isAway"
+            :is-sick="bird.isSick"
+            :just-hatched="bird.justHatched"
+            :just-grew="bird.justGrew"
+            :just-fed="bird.justFed"
+            :just-moved="bird.justMoved"
+            :personality="bird.personality"
+          />
+          <div
+            v-if="bird.colonyId"
+            class="absolute -top-1 -right-1 px-1.5 py-0.5 bg-emerald-500 text-white text-[9px] font-bold rounded-full"
+          >
+            🏡
+          </div>
+        </div>
         <div class="flex flex-col items-center">
           <div class="font-display text-lg text-white font-bold">{{ bird.name }}</div>
-          <div class="text-xs text-white/70">{{ STAGE_NAMES[bird.stage] }}</div>
+          <div class="text-xs text-white/70">
+            {{ bird.colonyId ? `🏡 ${colonyName}` : STAGE_NAMES[bird.stage] }}
+          </div>
           <div v-if="bird.stage !== 'egg' && !bird.isDead" class="text-[10px] text-amber-300 mt-0.5">
             {{ PERSONALITY_EMOJI?.[bird.personality] }} {{ PERSONALITY_NAMES[bird.personality] }}
           </div>
@@ -137,7 +157,10 @@ const hatchProgress = computed(() => {
           </button>
         </div>
 
-        <div v-if="bird.isAway && !bird.isDead" class="text-center text-blue-300 text-xs py-2">
+        <div v-if="bird.colonyId && !bird.isDead" class="text-center text-emerald-300 text-xs py-2">
+          🏡 已迁居分巢，自主生活中~
+        </div>
+        <div v-if="bird.isAway && !bird.isDead && !bird.colonyId" class="text-center text-blue-300 text-xs py-2">
           💨 暂时离巢中，天气好就回来~
         </div>
         <div v-if="bird.isSick && !bird.isDead" class="text-center text-orange-300 text-xs py-1">

@@ -91,6 +91,12 @@ const handleHome = () => {
             <div class="text-white/60 text-xs mb-1">照料加成</div>
             <div class="font-bold text-2xl text-amber-400">+{{ score.personalityBonus }}</div>
           </div>
+
+          <div v-if="score.colonyBonus > 0" class="bg-white/5 rounded-2xl p-4 text-center border border-emerald-400/20 col-span-2">
+            <div class="text-3xl mb-2">🏡</div>
+            <div class="text-white/60 text-xs mb-1">分巢加成 ({{ score.totalColonies }}个分巢)</div>
+            <div class="font-bold text-2xl text-emerald-400">+{{ score.colonyBonus }}</div>
+          </div>
         </div>
 
         <div class="bg-gradient-to-r from-amber-500/10 to-rose-500/10 rounded-2xl p-5 mb-6 border border-amber-400/20">
@@ -105,20 +111,43 @@ const handleHome = () => {
               <span>💔 离世 {{ state.totalDied }} 只</span>
               <span>💝 繁殖 {{ state.breedingCount }} 窝</span>
               <span>🐦 存活 {{ state.birds.filter(b => !b.isDead).length }} 只</span>
+              <span v-if="state.colonies.length > 0">🏡 分巢 {{ state.colonies.length }} 个</span>
+              <span v-if="state.colonies.length > 0">
+                📦 分巢产出 {{ state.colonies.reduce((s, c) => s + c.totalProduced, 0) }} 食物
+              </span>
             </div>
           </div>
         </div>
 
-        <div v-if="state.birds.filter(b => !b.isDead && b.stage === 'adult').length > 0" class="mb-6">
-          <div class="text-white/60 text-sm text-center mb-3">💐 那些陪伴过你的鸟儿们</div>
-          <div class="flex flex-wrap justify-center gap-2">
-            <div
-              v-for="bird in state.birds.filter(b => !b.isDead)"
-              :key="bird.id"
-              class="bg-white/10 px-3 py-1.5 rounded-xl text-sm text-white/90 flex items-center gap-1.5"
-            >
-              <span>🐦</span>
-              <span class="font-medium">{{ bird.name }}</span>
+        <div v-if="state.birds.filter(b => !b.isDead).length > 0" class="mb-6">
+          <div v-if="state.birds.filter(b => !b.isDead && !b.colonyId).length > 0" class="mb-4">
+            <div class="text-white/60 text-sm text-center mb-3">🏠 主巢的鸟儿们</div>
+            <div class="flex flex-wrap justify-center gap-2">
+              <div
+                v-for="bird in state.birds.filter(b => !b.isDead && !b.colonyId)"
+                :key="bird.id"
+                class="bg-white/10 px-3 py-1.5 rounded-xl text-sm text-white/90 flex items-center gap-1.5"
+              >
+                <span>🐦</span>
+                <span class="font-medium">{{ bird.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-for="colony in state.colonies" :key="colony.id" class="mb-4">
+            <div class="text-emerald-400/80 text-sm text-center mb-3">🏡 {{ colony.name }} 的鸟儿们</div>
+            <div class="flex flex-wrap justify-center gap-2">
+              <div
+                v-for="birdId in colony.birdIds"
+                :key="birdId"
+                class="bg-emerald-500/20 border border-emerald-400/30 px-3 py-1.5 rounded-xl text-sm text-white/90 flex items-center gap-1.5"
+              >
+                <span>🐦</span>
+                <span class="font-medium">{{ state.birds.find(b => b.id === birdId)?.name }}</span>
+              </div>
+            </div>
+            <div class="text-center text-xs text-white/40 mt-2">
+              建立 {{ colony.daysSinceEstablished }} 天 · 累计产出 {{ colony.totalProduced }} 食物
             </div>
           </div>
         </div>

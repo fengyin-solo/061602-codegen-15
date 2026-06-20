@@ -63,10 +63,10 @@ export const BERRY_EMOJI: Record<BerryType, string> = {
 export const WEATHER_CHANGE_INTERVAL = 25000
 
 export const WEATHER_EFFECTS: Record<Weather, WeatherEffect> = {
-  sunny: { hungerMod: 1.0, fearMod: 0.8, healthMod: 1.0 },
-  rainy: { hungerMod: 1.3, fearMod: 1.5, healthMod: 0.9, awayChance: 0.08 },
-  snowy: { hungerMod: 1.5, fearMod: 1.2, healthMod: 0.7, sickChance: 0.12 },
-  stormy: { hungerMod: 1.2, fearMod: 2.0, healthMod: 0.6, awayChance: 0.2, sickChance: 0.18 },
+  sunny: { hungerMod: 1.0, fearMod: 0.8, healthMod: 1.0, colonyHealthMod: 1.1, colonyHungerMod: 0.9 },
+  rainy: { hungerMod: 1.3, fearMod: 1.5, healthMod: 0.9, awayChance: 0.08, colonyHealthMod: 0.85, colonyHungerMod: 1.2 },
+  snowy: { hungerMod: 1.5, fearMod: 1.2, healthMod: 0.7, sickChance: 0.12, colonyHealthMod: 0.7, colonyHungerMod: 1.4 },
+  stormy: { hungerMod: 1.2, fearMod: 2.0, healthMod: 0.6, awayChance: 0.2, sickChance: 0.18, colonyHealthMod: 0.5, colonyHungerMod: 1.6 },
 }
 
 export const WEATHER_NAMES: Record<Weather, string> = {
@@ -109,4 +109,17 @@ export const BIRD_NAMES = [
   '毛毛', '豆豆', '啾啾', '喳喳', '花花', '点点', '果果', '泡泡',
   '糖糖', '圆圆', '小米', '小麦', '云朵', '星星', '月亮', '太阳',
   '小橘', '小蓝', '小绿', '小红', '阿黄', '阿白', '阿黑', '阿灰',
+]
+
+export const COLONY_TRIGGER_ADULT_COUNT = 6
+export const MIN_COLONY_BIRDS = 2
+export const MAX_COLONY_BIRDS = 4
+export const COLONY_FOOD_PER_BIRD = 15
+export const COLONY_DAILY_PRODUCTION_BASE = 5
+export const COLONY_ESTABLISH_COST = 20
+
+export const COLONY_NAMES = [
+  '橡树分巢', '松枝分巢', '竹林分巢', '桃源分巢',
+  '枫林分巢', '梨园分巢', '梅园分巢', '兰屿分巢',
+  '梧桐分巢', '银杏分巢', '丹桂分巢', '青竹分巢',
 ]

@@ -1,5 +1,5 @@
 import { reactive, computed, watch } from 'vue'
-import type { GameState, Bird, Berry, GrowthStage, Personality, BerryType, Weather, GameScore } from '@/types/game'
+import type { GameState, Bird, Berry, Colony, GrowthStage, Personality, BerryType, Weather, GameScore } from '@/types/game'
 import {
   ATTR_MIN, ATTR_MAX, DEATH_THRESHOLD,
   STAGE_DURATION, FOOD_NEED_MULTIPLIER,
@@ -8,9 +8,25 @@ import {
   BERRY_VALUES, WEATHER_CHANGE_INTERVAL, WEATHER_EFFECTS,
   DAY_DURATION, INITIAL_FOOD, MIN_EGGS, MAX_EGGS,
   MAX_BREEDING_ROUNDS, BIRD_NAMES,
+  COLONY_TRIGGER_ADULT_COUNT, MIN_COLONY_BIRDS, MAX_COLONY_BIRDS,
+  COLONY_FOOD_PER_BIRD, COLONY_DAILY_PRODUCTION_BASE, COLONY_ESTABLISH_COST,
+  COLONY_NAMES,
 } from '@/utils/constants'
 import { randomInt, randomFloat, clamp, randomChoice, generateId, chance } from '@/utils/random'
 import { saveGame, loadGame, clearSave } from '@/utils/storage'
+
+const usedColonyNames = new Set<string>()
+
+const pickColonyName = (): string => {
+  const available = COLONY_NAMES.filter(n => !usedColonyNames.has(n))
+  if (available.length === 0) {
+    usedColonyNames.clear()
+    return randomChoice(COLONY_NAMES)
+  }
+  const name = randomChoice(available)
+  usedColonyNames.add(name)
+  return name
+}
 
 const createInitialState = (): GameState => ({
   phase: 'start',
@@ -21,11 +37,14 @@ const createInitialState = (): GameState => ({
   foodStock: INITIAL_FOOD,
   birds: [],
   berries: [],
+  colonies: [],
   totalHatched: 0,
   totalDied: 0,
   breedingCount: 0,
   maxBreedingRounds: MAX_BREEDING_ROUNDS,
   eventLog: [],
+  showColonyModal: false,
+  selectedColonyBirdIds: [],
 })
 
 const state = reactive<GameState>(createInitialState())
@@ -92,6 +111,7 @@ const addEventLog = (message: string, type: string = 'info') => {
 const startGame = () => {
   Object.assign(state, createInitialState())
   usedNames.clear()
+  usedColonyNames.clear()
   state.phase = 'playing'
   clearSave()
 
@@ -104,6 +124,23 @@ const startGame = () => {
   startGameLoop()
   saveGame(state)
 }
+
+const adultCount = computed(() =>
+  state.birds.filter(b => !b.isDead && b.stage === 'adult' && !b.colonyId).length
+)
+
+const canCreateColony = computed(() =>
+  adultCount.value >= COLONY_TRIGGER_ADULT_COUNT &&
+  state.foodStock >= COLONY_ESTABLISH_COST &&
+  state.phase === 'playing'
+)
+
+const mainNestBirds = computed(() =>
+  state.birds.filter(b => !b.colonyId)
+)
+
+const getColonyBirds = (colonyId: string) =>
+  state.birds.filter(b => b.colonyId === colonyId && !b.isDead)
 
 const startGameLoop = () => {
   stopGameLoop()
@@ -132,6 +169,8 @@ const stopGameLoop = () => {
 const updateGame = (deltaMs: number) => {
   if (state.phase !== 'playing' && state.phase !== 'breeding') return
 
+  const dayAdvanced = state.dayProgress + deltaMs / DAY_DURATION >= 1
+
   state.dayProgress += deltaMs / DAY_DURATION
   if (state.dayProgress >= 1) {
     state.dayProgress -= 1
@@ -148,6 +187,10 @@ const updateGame = (deltaMs: number) => {
 
   aliveBirds.forEach(bird => {
     updateBird(bird, deltaMs, weatherEffect)
+  })
+
+  state.colonies.forEach(colony => {
+    updateColony(colony, deltaMs, weatherEffect, dayAdvanced)
   })
 
   cleanupExpiredBerries()
@@ -233,6 +276,51 @@ const updateBird = (bird: Bird, deltaMs: number, weatherEffect: ReturnType<typeo
     const healthMod = bird.health / 100
     if (bird.stageProgress * healthMod >= 1) {
       growBird(bird)
+    }
+  }
+}
+
+const updateColony = (colony: Colony, deltaMs: number, weatherEffect: ReturnType<typeof getWeatherEffects>, dayAdvanced: boolean) => {
+  const birds = state.birds.filter(b => b.colonyId === colony.id && !b.isDead)
+  if (birds.length === 0) return
+
+  const colonyHungerMod = weatherEffect.colonyHungerMod ?? 1.0
+  const colonyHealthMod = weatherEffect.colonyHealthMod ?? 1.0
+
+  colony.hungerMod = colonyHungerMod
+  colony.healthMod = colonyHealthMod
+
+  birds.forEach(bird => {
+    const hungerDecay = HUNGER_DECAY_RATE * colonyHungerMod * 0.8 * (deltaMs / 1000)
+    bird.hunger = clamp(bird.hunger - hungerDecay, ATTR_MIN, ATTR_MAX)
+
+    if (bird.hunger < 30) {
+      bird.health = clamp(bird.health - 0.3 * colonyHealthMod * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
+    } else if (bird.hunger > 70) {
+      bird.health = clamp(bird.health + HEALTH_RECOVERY_RATE * colonyHealthMod * 0.8 * (deltaMs / 1000), ATTR_MIN, ATTR_MAX)
+    }
+
+    if (bird.health <= DEATH_THRESHOLD) {
+      killBird(bird)
+      colony.birdIds = colony.birdIds.filter(id => id !== bird.id)
+    }
+  })
+
+  if (dayAdvanced) {
+    colony.daysSinceEstablished++
+
+    const foodNeeded = birds.length * COLONY_FOOD_PER_BIRD
+    if (colony.foodAllocation >= foodNeeded) {
+      colony.foodAllocation -= foodNeeded
+      const production = Math.round(COLONY_DAILY_PRODUCTION_BASE * birds.length * colonyHealthMod)
+      colony.totalProduced += production
+      state.foodStock += production
+      addEventLog(`🏡 ${colony.name} 产出了 ${production} 食物！`, 'success')
+    } else {
+      birds.forEach(bird => {
+        bird.hunger = clamp(bird.hunger - 15, ATTR_MIN, ATTR_MAX)
+      })
+      addEventLog(`⚠️ ${colony.name} 食物不足，鸟儿们挨饿了...`, 'warning')
     }
   }
 }
@@ -359,6 +447,92 @@ const calmBird = (birdId: string): boolean => {
   return true
 }
 
+const openColonyModal = () => {
+  if (!canCreateColony.value) return
+  state.selectedColonyBirdIds = []
+  state.showColonyModal = true
+}
+
+const closeColonyModal = () => {
+  state.showColonyModal = false
+  state.selectedColonyBirdIds = []
+}
+
+const toggleColonyBirdSelection = (birdId: string) => {
+  if (!state.selectedColonyBirdIds) return
+  const idx = state.selectedColonyBirdIds.indexOf(birdId)
+  if (idx === -1) {
+    if (state.selectedColonyBirdIds.length < MAX_COLONY_BIRDS) {
+      state.selectedColonyBirdIds.push(birdId)
+    }
+  } else {
+    state.selectedColonyBirdIds.splice(idx, 1)
+  }
+}
+
+const createColony = (foodAllocation: number): boolean => {
+  if (!state.selectedColonyBirdIds || state.selectedColonyBirdIds.length < MIN_COLONY_BIRDS) {
+    addEventLog('⚠️ 至少需要选择 2 只成鸟建立分巢！', 'warning')
+    return false
+  }
+  if (state.selectedColonyBirdIds.length > MAX_COLONY_BIRDS) {
+    addEventLog(`⚠️ 分巢最多容纳 ${MAX_COLONY_BIRDS} 只成鸟！`, 'warning')
+    return false
+  }
+  if (state.foodStock < COLONY_ESTABLISH_COST + foodAllocation) {
+    addEventLog('⚠️ 食物不足，无法建立分巢！', 'warning')
+    return false
+  }
+
+  state.foodStock -= COLONY_ESTABLISH_COST
+
+  const colony: Colony = {
+    id: generateId(),
+    name: pickColonyName(),
+    birdIds: [...state.selectedColonyBirdIds],
+    foodAllocation,
+    establishedAt: Date.now(),
+    healthMod: 1.0,
+    hungerMod: 1.0,
+    totalProduced: 0,
+    daysSinceEstablished: 0,
+  }
+
+  state.foodStock -= foodAllocation
+
+  state.selectedColonyBirdIds.forEach(birdId => {
+    const bird = state.birds.find(b => b.id === birdId)
+    if (bird) {
+      bird.colonyId = colony.id
+      bird.justMoved = true
+      setTimeout(() => { bird.justMoved = false }, 2000)
+    }
+  })
+
+  state.colonies.push(colony)
+
+  const birdNames = colony.birdIds
+    .map(id => state.birds.find(b => b.id === id)?.name)
+    .filter(Boolean)
+    .join('、')
+
+  addEventLog(`🏡 成功建立 ${colony.name}！${birdNames} 迁居到新巢，分配食物 ${foodAllocation}`, 'success')
+
+  closeColonyModal()
+  return true
+}
+
+const allocateFoodToColony = (colonyId: string, amount: number): boolean => {
+  const colony = state.colonies.find(c => c.id === colonyId)
+  if (!colony) return false
+  if (state.foodStock < amount) return false
+
+  state.foodStock -= amount
+  colony.foodAllocation += amount
+  addEventLog(`🍒 已向 ${colony.name} 追加分配 ${amount} 食物`, 'info')
+  return true
+}
+
 const allAdults = computed(() => {
   const alive = state.birds.filter(b => !b.isDead)
   return alive.length > 0 && alive.every(b => b.stage === 'adult')
@@ -422,11 +596,17 @@ const calculateScore = (): GameScore => {
     ? aliveBirds.reduce((s, b) => s + (b.feedingCount > 10 ? 5 : 2), 0)
     : 0
 
+  const colonyBonus = state.colonies.length > 0
+    ? state.colonies.reduce((s, c) => s + c.daysSinceEstablished * 2 + c.totalProduced * 0.5, 0)
+    : 0
+  const totalColonies = state.colonies.length
+
   const totalScore = Math.round(
     survivalRate * 40 +
     avgHealth * 0.3 +
     breedingBonus +
-    personalityBonus
+    personalityBonus +
+    colonyBonus
   )
 
   let stars = 1
@@ -447,6 +627,8 @@ const calculateScore = (): GameScore => {
     avgHealth: Math.round(avgHealth),
     breedingBonus,
     personalityBonus,
+    colonyBonus: Math.round(colonyBonus),
+    totalColonies,
     stars,
     rank,
   }
@@ -506,5 +688,14 @@ export function useGameState() {
     tryLoadGame,
     allAdults,
     aliveCount,
+    adultCount,
+    canCreateColony,
+    mainNestBirds,
+    getColonyBirds,
+    openColonyModal,
+    closeColonyModal,
+    toggleColonyBirdSelection,
+    createColony,
+    allocateFoodToColony,
   }
 }

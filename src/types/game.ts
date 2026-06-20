@@ -24,11 +24,13 @@ export interface Bird {
   isDead: boolean
   feedingCount: number
   lastFedAt: number
+  colonyId?: string
   awayUntil?: number
   sickUntil?: number
   justHatched?: boolean
   justGrew?: boolean
   justFed?: boolean
+  justMoved?: boolean
 }
 
 export interface Berry {
@@ -40,6 +42,28 @@ export interface Berry {
   spawnedAt: number
 }
 
+export interface WeatherEffect {
+  hungerMod: number
+  fearMod: number
+  healthMod: number
+  awayChance?: number
+  sickChance?: number
+  colonyHealthMod?: number
+  colonyHungerMod?: number
+}
+
+export interface Colony {
+  id: string
+  name: string
+  birdIds: string[]
+  foodAllocation: number
+  establishedAt: number
+  healthMod: number
+  hungerMod: number
+  totalProduced: number
+  daysSinceEstablished: number
+}
+
 export interface GameState {
   phase: GamePhase
   day: number
@@ -49,6 +73,7 @@ export interface GameState {
   foodStock: number
   birds: Bird[]
   berries: Berry[]
+  colonies: Colony[]
   totalHatched: number
   totalDied: number
   breedingCount: number
@@ -56,6 +81,8 @@ export interface GameState {
   eventLog: { id: string; message: string; type: string; timestamp: number }[]
   score?: GameScore
   selectedBirdId?: string
+  showColonyModal?: boolean
+  selectedColonyBirdIds?: string[]
 }
 
 export interface GameScore {
@@ -64,14 +91,8 @@ export interface GameScore {
   avgHealth: number
   breedingBonus: number
   personalityBonus: number
+  colonyBonus: number
+  totalColonies: number
   stars: number
   rank: string
-}
-
-export interface WeatherEffect {
-  hungerMod: number
-  fearMod: number
-  healthMod: number
-  awayChance?: number
-  sickChance?: number
 }
